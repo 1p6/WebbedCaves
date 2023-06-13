@@ -1,0 +1,10 @@
+{
+	"required": true,
+	"package": "flynx.cellular_caves.mixin",
+	"compatibilityLevel": "JAVA_8",
+	"refmap": "cellular_caves.refmap.json",
+	"mixins": [
+		"MixinDefaultBiomeFeatures"
+	],
+	"minVersion": "0.8"
+}
