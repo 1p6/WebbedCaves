@@ -2,16 +2,22 @@ package flynx.cellular_caves;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.PriorityQueue;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
+import com.google.common.util.concurrent.AtomicDouble;
 import com.mojang.serialization.Codec;
 
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.material.Material;
 import net.minecraft.fluid.FluidState;
+import net.minecraft.util.Direction.Axis;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.vector.Vector3i;
@@ -284,31 +290,154 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 	
 	public void digTunnel(BType[][][] array, Vector3i start, Vector3i end) {
 		final int radius = 4;
+		final int radiusSq = 16;
 		int dx = end.getX() - start.getX();
 		int adx = Math.abs(dx);
 		int dy = end.getY() - start.getY();
 		int ady = Math.abs(dy);
 		int dz = end.getZ() - start.getZ();
 		int adz = Math.abs(dz);
-		abstract class Dig {
-			
-		}
+		Axis biggest;
+		int sl, el, sc1, ec1, sc2, ec2;
+		int maxl = radius;
 		
-		if(adx >= ady && adx >= adz) {
-			boolean flip = dx <= 0;
-			int sx = Math.max(-radius-2, flip ? end.getX() : start.getX());
-			int ex = Math.min(array.length+radius+2, flip ? start.getX() : end.getX());
-			int y = flip ? end.getY() : start.getY();
-			int z = flip ? end.getZ() : start.getZ();
-			int py = 2*ady - adx;
-			int pz = 2*adz - adx;
-			for(int x = sx; x <= ex; x++) {
-				if(y )
-			}
-		} else if(ady >= adz) {
-			
+		if(adx > ady && adx > adz) {
+			biggest = Axis.X;
+			maxl += array.length;
+			sl = start.getX(); el = end.getX();
+			sc1 = start.getY(); ec1 = end.getY();
+			sc2 = start.getZ(); ec2 = end.getZ();
+		} else if(ady > adz) {
+			biggest = Axis.Y;
+			maxl += array[0].length;
+			sl = start.getY(); el = end.getY();
+			sc1 = start.getX(); ec1 = end.getX();
+			sc2 = start.getZ(); ec2 = end.getZ();
 		} else {
-			
+			biggest = Axis.Z;
+			maxl += array[0][0].length;
+			sl = start.getZ(); el = end.getZ();
+			sc1 = start.getX(); ec1 = end.getX();
+			sc2 = start.getY(); ec2 = end.getY();
+		}
+		if(sl > el) {
+			int t = sl;
+			sl = el;
+			el = t;
+			t = sc1;
+			sc1 = ec1;
+			ec1 = t;
+			t = sc2;
+			sc2 = ec2;
+			ec2 = t;
+		}
+		int dl = el - sl;
+		int dc1 = ec1 - sc1;
+		int dc2 = ec2 - sc2;
+		int minl = sl < -radius ? -radius : sl;
+		if(maxl > el) maxl = el;
+		for(int l = minl; l <= maxl; l++) {
+			int c1 = dl == 0 ? sc1 : (l - sl) * dc1 / dl + sc1;
+			int c2 = dl == 0 ? sc2 : (l - sl) * dc2 / dl + sc2;
+			for(int l2 = l-radius; l2 <= l+radius; l2++) {
+				for(int c12 = c1-radius; c12 <= c1+radius; c12++) {
+					for(int c22 = c2-radius; c22 <= c2+radius; c22++) {
+						if((l2-l)*(l2-l) + (c12-c1)*(c12-c1) + (c22-c2)*(c22-c2) <= radiusSq) {
+							switch(biggest) {
+							case X:
+								if(0 <= l2 && l2 < array.length &&
+								0 <= c12 && c12 < array[0].length &&
+								0 <= c22 && c22 < array[0][0].length)
+									array[l2][c12][c22] = BType.EMPTY;
+								break;
+							case Y:
+								if(0 <= c12 && c12 < array.length &&
+								0 <= l2 && l2 < array[0].length &&
+								0 <= c22 && c22 < array[0][0].length)
+									array[c12][l2][c22] = BType.EMPTY;
+								break;
+							case Z:
+								if(0 <= c12 && c12 < array.length &&
+								0 <= c22 && c22 < array[0].length &&
+								0 <= l2 && l2 < array[0][0].length)
+									array[c12][c22][l2] = BType.EMPTY;
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	private static class BB {
+		final int minX;
+		final int minZ;
+		final int maxX;
+		final int maxZ;
+		static final BB ALL = new BB(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
+		BB(int minX, int minZ, int maxX, int maxZ){
+			this.minX = minX;
+			this.minZ = minZ;
+			this.maxX = maxX;
+			this.maxZ = maxZ;
+		}
+		BB merge(BB other) {
+			return new BB(Math.min(minX, other.minX), Math.min(minZ, other.minZ),
+					Math.max(maxX, other.maxX), Math.max(maxZ, other.maxZ));
+		}
+		boolean contains(BB other) {
+			return minX <= other.minX && minZ <= other.minZ && other.maxX <= maxX && other.maxZ <= maxZ;
+		}
+		boolean contains(int x, int z) {
+			return minX <= x && x <= maxX && minZ <= z && z <= maxZ;
+		}
+		BB intersect(BB other) {
+			return new BB(Math.max(minX, other.minX), Math.max(minZ, other.minZ),
+					Math.min(maxX, other.maxX), Math.min(maxZ, other.maxZ));
+		}
+		boolean empty() {
+			return minX > maxX || minZ > maxZ;
+		}
+	}
+	private static class Node {
+		final Vector3i v;
+		final BB bbSee;
+		final BB bbNode;
+		int idx;
+		Node(Vector3i v, BB bbSee, BB bbNode, int idx) {
+			this.v = v;
+			this.bbSee = bbSee;
+			this.bbNode = bbNode;
+			this.idx = idx;
+		}
+	}
+	private static class Edge implements Comparable<Edge>{
+		final int weight;
+		final Node start;
+		final Node end;
+//		static final Edge MAX = new Edge();
+//		Edge() {
+//			this.start = null;
+//			this.end = null;
+//			this.weight = Integer.MAX_VALUE;
+//		}
+		static int calcWeight(Vector3i a, Vector3i b) {
+//			int maxfromorig = Math.max(a.v.getX()*a.v.getX() + a.v.getZ()*a.v.getZ(),
+//					b.v.getX()*b.v.getX() + b.v.getZ()*b.v.getZ()) >> 1; // to prevent disagreements on whether an edge is dug
+			int dx = a.getX() - b.getX();
+			int dy = a.getY() - b.getY();
+			int dz = a.getZ() - b.getZ();
+			return dx * dx + 16 * dy * dy + dz * dz;
+		}
+		Edge(Node start, Node end) {
+			this.start = start;
+			this.end = end;
+			weight = calcWeight(start.v, end.v);
+		}
+		public int compareTo(Edge o) {
+//			return o.weight - weight; //large dist first
+			return weight - o.weight; //small dist first
 		}
 	}
 	
@@ -317,7 +446,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 			int startChunkX, int startChunkZ, int currentChunkX, int currentChunkZ, BitSet p_225555_9_,
 			EmptyCarverConfig p_225555_10_) {
 		if(startChunkX != currentChunkX || startChunkZ != currentChunkZ) return false;
-		Instant start = CellularCaves.debugInfo ? Instant.now() : null;
+		Instant start = true||CellularCaves.debugInfo ? Instant.now() : null;
 		Random r = getSeededRandom(CellularCaves.seed, 35);
 		ChunkPos cpos = chunk.getPos();
 		
@@ -385,6 +514,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		
 		
 
+		long fillingSeed = r.nextLong();
 		final int rounds = 12;
 		xl = rounds+16+rounds; yl = rounds+256+rounds; zl = rounds+16+rounds;
 		array = new BType[xl][yl][zl];
@@ -392,15 +522,95 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		for(int x = 0; x < xl; x++) {
 			for(int y = 0; y < yl; y++) {
 				for(int z = 0; z < zl; z++) {
-					int xo = ((x >> 3) + (cpos.x << 1));
+					int xo = ((x >> 4) + (cpos.x >> 0)) >> 1;
 					int yo = (y >> 2);
-					int zo = ((z >> 3) + (cpos.z << 1));
-					array[x][y][z] = ((xo&3) == ((yo&2) == 0 ? 0 : 2)) ||
-							((zo&3) == (((yo+1)&2) == 0 ? 0 : 2)) ? BType.EMPTY : BType.FILLED;
+					int zo = ((z >> 4) + (cpos.z >> 0)) >> 1;
+					array[x][y][z] = BType.FILLED;
+//					array[x][y][z] = (y >= 20 && y <= 52 && getSeededRandom(fillingSeed, xo, zo).nextInt(30) == 0
+//							? BType.EMPTY : BType.FILLED);
+//					array[x][y][z] = ((xo&3) == ((yo&2) == 0 ? 0 : 2)) ||
+//							((zo&3) == (((yo+1)&2) == 0 ? 0 : 2)) ? BType.EMPTY : BType.FILLED;
 				}
 			}
 		}
-		blurCA(array, 0.6f, 0.4f, r.nextLong(), cpos.x<<4, 0, cpos.z<<4);
+		
+		{
+			long tunnelSeed = r.nextLong();
+			final int cradius = 8;
+			final int density = 2;
+			ArrayList<Node> points = new ArrayList<>(2*density*(2*cradius+1)*(2*cradius+1));
+			for(int cx = -cradius; cx <= cradius; cx++) {
+				for(int cz = -cradius; cz <= cradius; cz++) {
+					Random randPoints = getSeededRandom(tunnelSeed, cx+cpos.x, cz+cpos.z);
+					//poisson distribution sampling:
+					double L = Math.exp((double) -density);
+					double p = 1d;
+					while(true) {
+						p *= randPoints.nextDouble();
+						if(p < L) break;
+						points.add(new Node(new Vector3i(randPoints.nextInt(16) + (cx << 4) + rounds,
+								randPoints.nextInt(256-5) + rounds + 5,
+								randPoints.nextInt(16) + (cz << 4) + rounds),
+								new BB(cx-cradius+1, cz-cradius+1, cx+cradius-1, cz+cradius-1),
+								new BB(cx, cx, cz, cz),
+								points.size()));
+					}
+				}
+			}
+			for(int i = 0; i < points.size(); i++) {
+				Node ip = points.get(i);
+				outer: for(int j = i+1; j < points.size(); j++) {
+					Node jp = points.get(j);
+					int weight = Edge.calcWeight(ip.v, jp.v);
+					for(int k = 0; k < points.size(); k++) {
+						if(k == i || k == j) continue;
+						Node kp = points.get(k);
+						if(weight > Edge.calcWeight(ip.v, kp.v)
+								&& weight > Edge.calcWeight(jp.v, kp.v)) continue outer;
+					}
+					digTunnel(array, ip.v, jp.v);
+				}
+			}
+//			BB[][] pathBB = new BB[points.size()][points.size()];
+//			int unconnected = points.size() * (points.size() - 1) / 2;
+//			ArrayList<Edge> allEdges = new ArrayList<>(unconnected);
+//			for(int i = 0; i < points.size(); i++) {
+//				for(int j = 0; j < points.size(); j++) {
+////					pathBB[i][j] = i == j ? points.get(i).bbNode : BB.ALL;
+//					if(i < j) allEdges.add(new Edge(points.get(i), points.get(j)));
+//				}
+//			}
+////			allEdges.sort(null);
+//			ArrayList<Edge> edges = new ArrayList<>(points.size()-1);
+//			outer: for(Edge e : allEdges) {
+//				for(Node n : points) {
+//					if(e.weight > Edge.calcWeight(e.start.v, n.v)
+//							&& e.weight > Edge.calcWeight(e.end.v, n.v)) continue outer;
+//				}
+//				edges.add(e);
+//			}
+//			for(Edge e : edges) {
+//				digTunnel(array, e.start.v, e.end.v);
+//			}
+		}
+		
+		{
+			long blurSeed = r.nextLong();
+			long gapSeed = r.nextLong();
+			for(int xo = 0; xo < xl; xo++) {
+				for(int yo = 0; yo < yl; yo++) {
+					for(int zo = 0; zo < zl; zo++) {
+						int xgap = ((xo >> 4) + (cpos.x >> 0)) >> 1;
+						int zgap = ((zo >> 4) + (cpos.z >> 0)) >> 1;
+						boolean gap = yo >= 20 && yo < 52 && getSeededRandom(gapSeed, xgap, zgap).nextInt(30) == 0;
+						array[xo][yo][zo] = ((getSeededRandom(blurSeed, xo+(cpos.x<<4), yo, zo+(cpos.z<<4)).nextFloat() <
+								(array[xo][yo][zo] == BType.FILLED ? (gap ? 0.5f : 0.7) : 0.43f)) ? BType.FILLED : BType.EMPTY);
+					}
+				}
+			}
+		}
+		
+//		blurCA(array, 0.7f, 0.43f, r.nextLong(), cpos.x<<4, 0, cpos.z<<4);
 		runCA(array, arrayT);
 		runCA(arrayT, array);
 		runCA(array, arrayT);
@@ -408,13 +618,14 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		runCA(array, arrayT);
 		runCA(arrayT, array);
 //		blurCA(array, 0.7f, 0.45f, r.nextLong(), cpos.x<<4, 0, cpos.z<<4);
-		runCA(array, arrayT);
-		runCA(arrayT, array);
+//		runCA(array, arrayT);
+//		runCA(arrayT, array);
 //		blurCA(array, 0.55f, 0.45f, r.nextLong(), cpos.x<<4, 0, cpos.z<<4);
-		runCA(array, arrayT);
-		runCA(arrayT, array);
-		runCA(array, arrayT);
-		runCA(arrayT, array);
+//		runCA(array, arrayT);
+//		runCA(arrayT, array);
+//		runCA(array, arrayT);
+//		runCA(arrayT, array);
+//		digTunnel(array, new Vector3i(rounds+5, 20, rounds+11), new Vector3i(rounds+11, 40, rounds+5));
 		
 		/*
 		BType[][] surface = new BType[6+7+6][6+7+6];
@@ -488,16 +699,16 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		*/
 		
 		
-		for(int x = rounds; x < rounds+16; x++) {
-			for(int z = rounds; z < rounds+16; z++) {
-				for(int y = rounds+1; y < rounds+11; y++) {
-					placeLiquid(array, x, y, z, BType.LAVA);
-				}
-				for(int y = rounds+62; y < rounds+255; y++) {
-//					placeLiquid(array, x, y, z, BType.WATER);
-				}
-			}
-		}
+//		for(int x = rounds; x < rounds+16; x++) {
+//			for(int z = rounds; z < rounds+16; z++) {
+//				for(int y = rounds+1; y < rounds+11; y++) {
+//					placeLiquid(array, x, y, z, BType.LAVA);
+//				}
+//				for(int y = rounds+62; y < rounds+255; y++) {
+////					placeLiquid(array, x, y, z, BType.WATER);
+//				}
+//			}
+//		}
 		
 		for(int x = 0; x < 16; x++) {
 			for(int z = 0; z < 16; z++) {
@@ -543,8 +754,8 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 			}
 		}
 		
-		if(CellularCaves.debugInfo)
-			CellularCaves.LOGGER.info("chunk cave gen took " + Duration.between(start, Instant.now()));
+		if(true || CellularCaves.debugInfo)
+			CellularCaves.LOGGER.info("chunk cave gen took " + Duration.between(start, Instant.now()).toMillis() + " ms");
 		
 		return true;
 	}
