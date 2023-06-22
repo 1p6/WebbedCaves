@@ -112,7 +112,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 					//sets each block to the median of it's 6 neighbors
 					int count = 0;
 //					boolean smoother = input[x][y-1][z] == BType.FILLED && input[x][y+1][z] == BType.EMPTY;
-					int thresh = 9;
+					int thresh = 7;
 					
 					//face neighbors
 					if(input[x-1][y][z] == BType.FILLED) count++;
@@ -138,10 +138,10 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 						if(input[x][y-1][z+1] == BType.FILLED) count++;
 						if(input[x][y-1][z-1] == BType.FILLED) count++;
 
-						if(input[x+1][y][z+1] == BType.FILLED) count++;
-						if(input[x+1][y][z-1] == BType.FILLED) count++;
-						if(input[x-1][y][z+1] == BType.FILLED) count++;
-						if(input[x-1][y][z-1] == BType.FILLED) count++;
+//						if(input[x+1][y][z+1] == BType.FILLED) count++;
+//						if(input[x+1][y][z-1] == BType.FILLED) count++;
+//						if(input[x-1][y][z+1] == BType.FILLED) count++;
+//						if(input[x-1][y][z-1] == BType.FILLED) count++;
 //					} else {
 
 						if(input[x][y-1][z] == BType.FILLED) count++;
@@ -257,12 +257,25 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 	}
 	public void placeLiquid(BType[][][] array, int x, int y, int z, BType liquid) {
 		//places liquid if the block is empty, the block below is filled, and at least one other neighbor is filled
-		if(array[x][y][z] == BType.EMPTY && array[x][y-1][z] == BType.FILLED && (
-				array[x-1][y][z] == BType.FILLED ||
-				array[x+1][y][z] == BType.FILLED ||
-				array[x][y+1][z] == BType.FILLED ||
-				array[x][y][z-1] == BType.FILLED ||
-				array[x][y][z+1] == BType.FILLED))
+//		if(array[x][y][z] == BType.EMPTY && array[x][y-1][z] == BType.FILLED && (
+//				array[x-1][y][z] == BType.FILLED ||
+//				array[x+1][y][z] == BType.FILLED ||
+//				array[x][y+1][z] == BType.FILLED ||
+//				array[x][y][z-1] == BType.FILLED ||
+//				array[x][y][z+1] == BType.FILLED))
+		//places liquid if the block is empty or any at-level neighbors of the block below are empty, and
+		//  the block below is filled, and all at-level neighbors are filled
+		if((array[x][y][z] == BType.EMPTY ||
+				((array[x-1][y-1][z] == BType.EMPTY ||
+				array[x+1][y-1][z] == BType.EMPTY ||
+				array[x][y-1][z-1] == BType.EMPTY ||
+				array[x][y-1][z+1] == BType.EMPTY) &&
+				array[x][y-2][z] == BType.EMPTY)) && // kinda iffy on this specific line, since it's ok if there is extra water in spikes
+				array[x][y-1][z] == BType.FILLED &&
+				array[x-1][y][z] == BType.FILLED &&
+				array[x+1][y][z] == BType.FILLED &&
+				array[x][y][z-1] == BType.FILLED &&
+				array[x][y][z+1] == BType.FILLED)
 			array[x][y][z] = liquid;
 	}
 	public enum Domain {
@@ -289,8 +302,10 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 //	}
 	
 	public void digTunnel(BType[][][] array, Vector3i start, Vector3i end) {
-		final int radius = 4;
-		final int radiusSq = 16;
+		final int radius = 8;
+		final int radiusSq = 64;
+		final int yRadius = 4;
+		final int yShrinkSq = 4;
 		int dx = end.getX() - start.getX();
 		int adx = Math.abs(dx);
 		int dy = end.getY() - start.getY();
@@ -339,31 +354,25 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		for(int l = minl; l <= maxl; l++) {
 			int c1 = dl == 0 ? sc1 : (l - sl) * dc1 / dl + sc1;
 			int c2 = dl == 0 ? sc2 : (l - sl) * dc2 / dl + sc2;
-			for(int l2 = l-radius; l2 <= l+radius; l2++) {
-				for(int c12 = c1-radius; c12 <= c1+radius; c12++) {
-					for(int c22 = c2-radius; c22 <= c2+radius; c22++) {
-						if((l2-l)*(l2-l) + (c12-c1)*(c12-c1) + (c22-c2)*(c22-c2) <= radiusSq) {
-							switch(biggest) {
-							case X:
-								if(0 <= l2 && l2 < array.length &&
-								0 <= c12 && c12 < array[0].length &&
-								0 <= c22 && c22 < array[0][0].length)
-									array[l2][c12][c22] = BType.EMPTY;
-								break;
-							case Y:
-								if(0 <= c12 && c12 < array.length &&
-								0 <= l2 && l2 < array[0].length &&
-								0 <= c22 && c22 < array[0][0].length)
-									array[c12][l2][c22] = BType.EMPTY;
-								break;
-							case Z:
-								if(0 <= c12 && c12 < array.length &&
-								0 <= c22 && c22 < array[0].length &&
-								0 <= l2 && l2 < array[0][0].length)
-									array[c12][c22][l2] = BType.EMPTY;
-								break;
-							}
-						}
+			int x,y,z;
+			switch(biggest) {
+			case X:
+				x = l; y = c1; z = c2;
+				break;
+			case Y:
+				x = c1; y = l; z = c2;
+				break;
+			case Z:
+			default:
+				x = c1; y = c2; z = l;
+			}
+			for(int x2 = x-radius; x2 <= x+radius; x2++) {
+				for(int y2 = y-yRadius; y2 <= y+yRadius; y2++) {
+					for(int z2 = z-radius; z2 <= z+radius; z2++) {
+						if(0 <= x2 && x2 < array.length &&
+								0 <= y2 && y2 < array[0].length &&
+								0 <= z2 && z2 < array[0][0].length)
+							array[x2][y2][z2] = BType.EMPTY;
 					}
 				}
 			}
@@ -537,7 +546,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		{
 			long tunnelSeed = r.nextLong();
 			final int cradius = 8;
-			final int density = 2;
+			final int density = 1;
 			ArrayList<Node> points = new ArrayList<>(2*density*(2*cradius+1)*(2*cradius+1));
 			for(int cx = -cradius; cx <= cradius; cx++) {
 				for(int cz = -cradius; cz <= cradius; cz++) {
@@ -557,6 +566,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 					}
 				}
 			}
+			//calculate relative neighborhood graph
 			for(int i = 0; i < points.size(); i++) {
 				Node ip = points.get(i);
 				outer: for(int j = i+1; j < points.size(); j++) {
@@ -576,7 +586,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 //			ArrayList<Edge> allEdges = new ArrayList<>(unconnected);
 //			for(int i = 0; i < points.size(); i++) {
 //				for(int j = 0; j < points.size(); j++) {
-////					pathBB[i][j] = i == j ? points.get(i).bbNode : BB.ALL;
+//					pathBB[i][j] = i == j ? points.get(i).bbNode : BB.ALL;
 //					if(i < j) allEdges.add(new Edge(points.get(i), points.get(j)));
 //				}
 //			}
@@ -593,6 +603,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 //				digTunnel(array, e.start.v, e.end.v);
 //			}
 		}
+		Instant tunnels = Instant.now();
 		
 		{
 			long blurSeed = r.nextLong();
@@ -604,12 +615,12 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 						int zgap = ((zo >> 4) + (cpos.z >> 0)) >> 1;
 						boolean gap = yo >= 20 && yo < 52 && getSeededRandom(gapSeed, xgap, zgap).nextInt(30) == 0;
 						array[xo][yo][zo] = ((getSeededRandom(blurSeed, xo+(cpos.x<<4), yo, zo+(cpos.z<<4)).nextFloat() <
-								(array[xo][yo][zo] == BType.FILLED ? (gap ? 0.5f : 0.7) : 0.43f)) ? BType.FILLED : BType.EMPTY);
+								(array[xo][yo][zo] == BType.FILLED ? (gap ? 0.7f : 0.7) : 0.47f)) ? BType.FILLED : BType.EMPTY);
 					}
 				}
 			}
 		}
-		
+		Instant beforeCA = Instant.now();
 //		blurCA(array, 0.7f, 0.43f, r.nextLong(), cpos.x<<4, 0, cpos.z<<4);
 		runCA(array, arrayT);
 		runCA(arrayT, array);
@@ -699,23 +710,23 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		*/
 		
 		
-//		for(int x = rounds; x < rounds+16; x++) {
-//			for(int z = rounds; z < rounds+16; z++) {
+		for(int x = rounds; x < rounds+16; x++) {
+			for(int z = rounds; z < rounds+16; z++) {
 //				for(int y = rounds+1; y < rounds+11; y++) {
 //					placeLiquid(array, x, y, z, BType.LAVA);
 //				}
-//				for(int y = rounds+62; y < rounds+255; y++) {
-////					placeLiquid(array, x, y, z, BType.WATER);
-//				}
-//			}
-//		}
-		
+				for(int y = rounds+6; y < rounds+255; y++) {
+					placeLiquid(array, x, y, z, BType.WATER);
+				}
+			}
+		}
+		Instant beforeSBS = Instant.now();
 		for(int x = 0; x < 16; x++) {
 			for(int z = 0; z < 16; z++) {
 				BlockPos pos = cpos.getWorldPosition().offset(x, 0, z);
 				Biome b = biomefunc.apply(pos);
 				boolean flooded = b.getBiomeCategory() == Biome.Category.OCEAN;
-				float waterChance = b.getDownfall() * 0.3f;
+				float waterChance = b.getDownfall() * 1.0f;
 				for(int y = 1; y < 255; y++) {
 					BlockPos posy = pos.offset(0, y, 0);
 					BlockState bs = chunk.getBlockState(posy);
@@ -754,8 +765,12 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 			}
 		}
 		
+		Instant end = Instant.now();
+		CellularCaves.LOGGER.info("tunnel digging took " + Duration.between(start, tunnels).toMillis() + " ms");
+		CellularCaves.LOGGER.info("before ca took " + Duration.between(start, beforeCA).toMillis() + " ms");
+		CellularCaves.LOGGER.info("before sbs took " + Duration.between(start, beforeSBS).toMillis() + " ms");
 		if(true || CellularCaves.debugInfo)
-			CellularCaves.LOGGER.info("chunk cave gen took " + Duration.between(start, Instant.now()).toMillis() + " ms");
+			CellularCaves.LOGGER.info("chunk cave gen took " + Duration.between(start, end).toMillis() + " ms");
 		
 		return true;
 	}
