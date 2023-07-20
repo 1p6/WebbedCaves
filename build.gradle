@@ -122,6 +122,12 @@ mixin {
     add sourceSets.main, "cellular_caves.refmap.json"
 }
 
+repositories {
+	flatDir {
+		dirs 'lib'
+	}
+}
+
 dependencies {
     // Specify the version of Minecraft to use, If this is any group other then 'net.minecraft' it is assumed
     // that the dep is a ForgeGradle 'patcher' dependency. And it's patches will be applied.
@@ -142,6 +148,8 @@ dependencies {
 
     // These dependencies get remapped to your current MCP mappings
     // deobf 'com.mod-buildcraft:buildcraft:6.0.8:dev'
+    fg.deobf 'vazkii:Quark-r2.4-322:1'
+    fg.deobf 'vazkii:AutoRegLib-1.6-49:1'
 
     // For more info...
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
