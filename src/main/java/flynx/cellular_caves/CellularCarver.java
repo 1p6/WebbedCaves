@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.PriorityQueue;
 import java.util.Random;
@@ -53,9 +54,45 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 	public static final BlockState PILLAR = Blocks.COBBLESTONE_WALL.defaultBlockState();
 	public static final BlockState RED_GLAZED_TERRACOTTA = Blocks.RED_GLAZED_TERRACOTTA.defaultBlockState();
 
+	public static String padLong(long l) {
+		StringBuilder res = new StringBuilder();
+		for(int i = 0; i < 64; i++) {
+			res.append((l & Long.MIN_VALUE) == 0 ? '0' : '1');
+			l = l << 1;
+		}
+		return res.toString();
+	}
+	
 	public CellularCarver(Codec<EmptyCarverConfig> p_i231921_1_, int p_i231921_2_) {
 		super(p_i231921_1_, p_i231921_2_);
 		setRegistryName(CellularCaves.MODID, "cellular_caves");
+		int b = 2;
+		int[] counts = new int[b];
+		FastRandom r1 = new FastRandom(0);
+		FastRandom r2 = new FastRandom(Long.MIN_VALUE);
+		r1.step(); r2.step();
+		long l1 = r1.getSeed();
+		long l2 = r2.getSeed();
+		CellularCaves.LOGGER.info(padLong(l1));
+		CellularCaves.LOGGER.info(padLong(l2));
+		CellularCaves.LOGGER.info(r1.nextDouble());
+		CellularCaves.LOGGER.info(r2.nextDouble());
+		CellularCaves.LOGGER.info(r1.nextDouble());
+		CellularCaves.LOGGER.info(r2.nextDouble());
+		CellularCaves.LOGGER.info(r1.nextDouble());
+		CellularCaves.LOGGER.info(r2.nextDouble());
+		CellularCaves.LOGGER.info(r1.nextDouble());
+		CellularCaves.LOGGER.info(r2.nextDouble());
+		CellularCaves.LOGGER.info(r1.nextDouble());
+		CellularCaves.LOGGER.info(r2.nextDouble());
+		CellularCaves.LOGGER.info(r1.nextDouble());
+		CellularCaves.LOGGER.info(r2.nextDouble());
+		for(int i = 0; i < 10000000; i++) {
+			counts[r1.nextInt(b)]++;
+		}
+		CellularCaves.LOGGER.info(Arrays.toString(counts));
+		
+		CellularCaves.LOGGER.info("meowwwwwwwwww");
 	}
 	
 	public static enum BType {
@@ -69,7 +106,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		for(int xo = 0; xo < xl; xo++) {
 			for(int yo = 0; yo < yl; yo++) {
 				for(int zo = 0; zo < zl; zo++) {
-					out[xo][yo][zo] = (getSeededRandom(seed, xo+x, yo+y, zo+z).nextFloat() < prob ? BType.FILLED : BType.EMPTY);
+					out[xo][yo][zo] = (new FastRandom(seed, xo+x, yo+y, zo+z).nextFloat() < prob ? BType.FILLED : BType.EMPTY);
 				}
 			}
 		}
@@ -79,7 +116,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		int yl = out[0].length;
 		for(int xo = 0; xo < xl; xo++) {
 			for(int yo = 0; yo < yl; yo++) {
-				out[xo][yo] = (getSeededRandom(seed, xo+x, yo+y).nextFloat() < prob ? BType.FILLED : BType.EMPTY);
+				out[xo][yo] = (new FastRandom(seed, xo+x, yo+y).nextFloat() < prob ? BType.FILLED : BType.EMPTY);
 			}
 		}
 	}
@@ -90,7 +127,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		int zl = out[0][0].length;
 		for(int xo = 0; xo < xl; xo++) {
 			for(int zo = 0; zo < zl; zo++) {
-				Random blurRandom = getSeededRandom(seed, xo+x, zo+z);
+				FastRandom blurRandom = new FastRandom(seed, xo+x, zo+z);
 				for(int yo = 0; yo < yl; yo++) {
 					out[xo][yo][zo] = (blurRandom.nextFloat() <
 							(out[xo][yo][zo] == BType.FILLED ? pFill : pEmpty)) ? BType.FILLED : BType.EMPTY;
@@ -103,7 +140,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		int yl = out[0].length;
 		for(int xo = 0; xo < xl; xo++) {
 			for(int yo = 0; yo < yl; yo++) {
-				out[xo][yo] = (getSeededRandom(seed, xo+x, yo+y).nextFloat() <
+				out[xo][yo] = (new FastRandom(seed, xo+x, yo+y).nextFloat() <
 						(out[xo][yo] == BType.FILLED ? pFill : pEmpty)) ? BType.FILLED : BType.EMPTY;
 			}
 		}
@@ -434,6 +471,8 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 	}
 	
 	public void digBezier(float[][][] array, Node start, Node control, Node end) {
+		//which node is the start vs end is already consistent between chunks due to
+		//  it ordering the chunks lexicographically when creating the nodes
 //		boolean shouldSwap = start.decider < end.decider;
 //		if(((start.decider ^ end.decider) & 1) == 0) shouldSwap = !shouldSwap;
 //		if(shouldSwap) { // get a consistent view of which node is the start that doesn't bias certain nodes
@@ -451,8 +490,8 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 //		boolean ravine = start.ravine;
 //		boolean cheese = (end.decider & 6) == 0;
 //		boolean cheese = true;
-		Random r = getSeededRandom(start.seed, end.seed);
-		boolean ravine = r.nextInt(6) == 0;
+		FastRandom r = new FastRandom(start.seed, end.seed);
+		boolean ravine = r.nextInt(10) == 0;
 		boolean cheese = r.nextInt(3) == 0;
 		Vector3d UNIT1 = new Vector3d(1, 0, 0);
 		Vector3d UNIT2 = new Vector3d(0, 1, 0);
@@ -588,12 +627,12 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 	}
 	
 	@Override
-	public boolean carve(IChunk chunk, Function<BlockPos, Biome> biomefunc, Random rand, int sealevel,
+	public boolean carve(IChunk chunk, Function<BlockPos, Biome> biomefunc, Random slowRand, int sealevel,
 			int startChunkX, int startChunkZ, int currentChunkX, int currentChunkZ, BitSet p_225555_9_,
 			EmptyCarverConfig p_225555_10_) {
 		if(startChunkX != currentChunkX || startChunkZ != currentChunkZ) return false;
 		Instant start = true||CellularCaves.debugInfo ? Instant.now() : null;
-		Random r = getSeededRandom(CellularCaves.seed, 35);
+		FastRandom r = new FastRandom(CellularCaves.seed, 35);
 		ChunkPos cpos = chunk.getPos();
 		
 		BType[][][] array, arrayT;
@@ -689,7 +728,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 			ArrayList<Node> points = new ArrayList<>(2*density*(2*cradius+1)*(2*cradius+1));
 			for(int cx = -cradius; cx <= cradius; cx++) {
 				for(int cz = -cradius; cz <= cradius; cz++) {
-					Random randPoints = getSeededRandom(tunnelSeed, cx+cpos.x, cz+cpos.z);
+					FastRandom randPoints = new FastRandom(tunnelSeed, cx+cpos.x, cz+cpos.z);
 					//poisson distribution sampling:
 					double L = Math.exp((double) -density);
 					double p = 1d;
@@ -779,7 +818,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 			for(int xo = 0; xo < xl; xo++) {
 				for(int zo = 0; zo < zl; zo++) {
 //					Random pillarRandom = getSeededRandom(pillarSeed, (xo+cpos.getMinBlockX())>>1, (zo+cpos.getMinBlockZ()) >> 1);
-					Random blurRandom = getSeededRandom(blurSeed, xo+cpos.getMinBlockX(), zo+cpos.getMinBlockZ());
+					FastRandom blurRandom = new FastRandom(blurSeed, xo+cpos.getMinBlockX(), zo+cpos.getMinBlockZ());
 //					boolean pillar = pillarRandom.nextInt(64) == 0;
 //					if(pillar) {
 //						for(int yo = 0; yo < yl; yo++) {
@@ -900,7 +939,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 				for(int y = rounds+lavaHeight+1; y < rounds+256; y++) {
 					placeLiquid(arrayT, array, x, y, z, BType.WATER);
 				}
-				Random pillarRand = getSeededRandom(pillarSeed, x+cpos.getMinBlockX(), z+cpos.getMinBlockZ());
+				FastRandom pillarRand = new FastRandom(pillarSeed, x+cpos.getMinBlockX(), z+cpos.getMinBlockZ());
 				for(int y = rounds+lavaHeight+1; y < rounds+256; y++) {
 					if(array[x][y][z] == BType.EMPTY &&
 							(array[x][y-1][z] == BType.FILLED ||

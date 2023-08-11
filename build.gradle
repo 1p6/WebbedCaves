@@ -148,8 +148,8 @@ dependencies {
 
     // These dependencies get remapped to your current MCP mappings
     // deobf 'com.mod-buildcraft:buildcraft:6.0.8:dev'
-    fg.deobf 'vazkii:Quark-r2.4-322:1'
-    fg.deobf 'vazkii:AutoRegLib-1.6-49:1'
+    runtimeOnly(fg.deobf('vazkii:Quark-r2.4-322:1'))
+    runtimeOnly(fg.deobf('vazkii:AutoRegLib-1.6-49:1'))
 
     // For more info...
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
