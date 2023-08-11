@@ -53,46 +53,10 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 	public static final BlockState MAGMA_BLOCK = Blocks.MAGMA_BLOCK.defaultBlockState();
 	public static final BlockState PILLAR = Blocks.COBBLESTONE_WALL.defaultBlockState();
 	public static final BlockState RED_GLAZED_TERRACOTTA = Blocks.RED_GLAZED_TERRACOTTA.defaultBlockState();
-
-	public static String padLong(long l) {
-		StringBuilder res = new StringBuilder();
-		for(int i = 0; i < 64; i++) {
-			res.append((l & Long.MIN_VALUE) == 0 ? '0' : '1');
-			l = l << 1;
-		}
-		return res.toString();
-	}
 	
 	public CellularCarver(Codec<EmptyCarverConfig> p_i231921_1_, int p_i231921_2_) {
 		super(p_i231921_1_, p_i231921_2_);
 		setRegistryName(CellularCaves.MODID, "cellular_caves");
-		int b = 2;
-		int[] counts = new int[b];
-		FastRandom r1 = new FastRandom(0);
-		FastRandom r2 = new FastRandom(Long.MIN_VALUE);
-		r1.step(); r2.step();
-		long l1 = r1.getSeed();
-		long l2 = r2.getSeed();
-		CellularCaves.LOGGER.info(padLong(l1));
-		CellularCaves.LOGGER.info(padLong(l2));
-		CellularCaves.LOGGER.info(r1.nextDouble());
-		CellularCaves.LOGGER.info(r2.nextDouble());
-		CellularCaves.LOGGER.info(r1.nextDouble());
-		CellularCaves.LOGGER.info(r2.nextDouble());
-		CellularCaves.LOGGER.info(r1.nextDouble());
-		CellularCaves.LOGGER.info(r2.nextDouble());
-		CellularCaves.LOGGER.info(r1.nextDouble());
-		CellularCaves.LOGGER.info(r2.nextDouble());
-		CellularCaves.LOGGER.info(r1.nextDouble());
-		CellularCaves.LOGGER.info(r2.nextDouble());
-		CellularCaves.LOGGER.info(r1.nextDouble());
-		CellularCaves.LOGGER.info(r2.nextDouble());
-		for(int i = 0; i < 10000000; i++) {
-			counts[r1.nextInt(b)]++;
-		}
-		CellularCaves.LOGGER.info(Arrays.toString(counts));
-		
-		CellularCaves.LOGGER.info("meowwwwwwwwww");
 	}
 	
 	public static enum BType {
@@ -743,7 +707,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 //							comp2 = Math.cos(angle);
 //						}
 						points.add(new Node(new Vector3i(randPoints.nextInt(16) + (cx << 4) + rounds,
-								randPoints.nextInt(256-5) + rounds + 5,
+								randPoints.nextInt(256) + rounds + 7,
 								randPoints.nextInt(16) + (cz << 4) + rounds),
 								randPoints.nextLong()));
 					}
