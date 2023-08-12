@@ -24,6 +24,7 @@ import net.minecraft.util.registry.Registry;
 import net.minecraft.util.registry.WorldGenRegistries;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.Biome.RainType;
+import net.minecraft.world.chunk.ChunkSection;
 import net.minecraft.world.chunk.IChunk;
 import net.minecraft.world.gen.carver.ConfiguredCarver;
 import net.minecraft.world.gen.carver.EmptyCarverConfig;
@@ -397,6 +398,8 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 			EmptyCarverConfig p_225555_10_) {
 		if(startChunkX != currentChunkX || startChunkZ != currentChunkZ) return false;
 		Instant start = true||CellularCaves.debugInfo ? Instant.now() : null;
+		ChunkSection highest = chunk.getHighestSection();
+		int maxY = highest == null ? 0 : highest.bottomBlockY() + 16;
 		FastRandom r = new FastRandom(CellularCaves.seed, 35);
 		ChunkPos cpos = chunk.getPos();
 		
@@ -407,7 +410,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		long fillingSeed = r.nextLong();
 		final int lavaHeight = 7;
 		final int rounds = 12;
-		xl = rounds+16+rounds; yl = rounds+256+rounds; zl = rounds+16+rounds;
+		xl = rounds+16+rounds; yl = rounds+maxY+rounds; zl = rounds+16+rounds;
 		array = new BType[xl][yl][zl];
 		arrayT = new BType[xl][yl][zl];
 		float[][][] chances = new float[xl][yl][zl];
@@ -422,6 +425,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 			}
 		}
 		
+		Instant midTunnels;
 		{
 			long tunnelSeed = r.nextLong();
 			final int cradius = 8;
@@ -450,6 +454,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 					}
 				}
 			}
+			midTunnels = Instant.now();
 			//calculate relative neighborhood graph
 			for(int i = 0; i < points.size(); i++) {
 				Node ip = points.get(i);
@@ -508,11 +513,11 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 //				for(int y = rounds+1; y < rounds+11; y++) {
 //					placeLiquid(array, x, y, z, BType.LAVA);
 //				}
-				for(int y = rounds+lavaHeight+1; y < rounds+256; y++) {
+				for(int y = rounds+lavaHeight+1; y < rounds+maxY; y++) {
 					placeLiquid(arrayT, array, x, y, z, BType.WATER);
 				}
 				FastRandom pillarRand = new FastRandom(pillarSeed, x+cpos.getMinBlockX(), z+cpos.getMinBlockZ());
-				for(int y = rounds+lavaHeight+1; y < rounds+256; y++) {
+				for(int y = rounds+lavaHeight+1; y < rounds+maxY; y++) {
 					if(array[x][y][z] == BType.EMPTY &&
 							(array[x][y-1][z] == BType.FILLED ||
 							array[x][y+1][z] == BType.FILLED) &&
@@ -529,7 +534,7 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 				BlockState surface = b.getGenerationSettings().getSurfaceBuilderConfig().getUnderMaterial();
 				boolean flooded = b.getBiomeCategory() == Biome.Category.OCEAN;
 				boolean rain = b.getPrecipitation() != RainType.NONE;
-				for(int y = 1; y < 255; y++) {
+				for(int y = 1; y < maxY; y++) {
 					BlockPos posy = pos.offset(0, y, 0);
 					BlockState bs = chunk.getBlockState(posy);
 					if(bs.getMaterial() == Material.AIR ||
@@ -583,7 +588,8 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		}
 		
 		Instant end = Instant.now();
-		CellularCaves.LOGGER.info("tunnel digging took " + Duration.between(start, tunnels).toMillis() + " ms");
+		CellularCaves.LOGGER.info("tunnel node sampling took " + Duration.between(start, midTunnels).toMillis() + " ms");
+		CellularCaves.LOGGER.info("tunnel graph computation/digging took " + Duration.between(midTunnels, tunnels).toMillis() + " ms");
 		CellularCaves.LOGGER.info("blur took " + Duration.between(tunnels, beforeCA).toMillis() + " ms");
 		CellularCaves.LOGGER.info("ca took " + Duration.between(beforeCA, beforeSBS).toMillis() + " ms");
 		CellularCaves.LOGGER.info("sbs took " + Duration.between(beforeSBS, end).toMillis() + " ms");
