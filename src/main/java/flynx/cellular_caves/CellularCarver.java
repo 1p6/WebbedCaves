@@ -194,6 +194,10 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 //	}
 	
 	public void loopLine(Vector3i start, Vector3i end, Consumer<Vector3i> body) {
+		loopLine(start, end, new Vector3i(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE),
+				new Vector3i(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE), body);
+	}
+	public void loopLine(Vector3i start, Vector3i end, Vector3i min, Vector3i max, Consumer<Vector3i> body) {
 		int dx = end.getX() - start.getX();
 		int adx = Math.abs(dx);
 		int dy = end.getY() - start.getY();
@@ -201,24 +205,23 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		int dz = end.getZ() - start.getZ();
 		int adz = Math.abs(dz);
 		Axis biggest;
-		int sl, el, sc1, ec1, sc2, ec2;
-//		int maxl = radius;
+		int sl, el, sc1, ec1, sc2, ec2, minl, maxl;
 		
 		if(adx > ady && adx > adz) {
 			biggest = Axis.X;
-//			maxl += array.length;
+			minl = min.getX(); maxl = max.getX();
 			sl = start.getX(); el = end.getX();
 			sc1 = start.getY(); ec1 = end.getY();
 			sc2 = start.getZ(); ec2 = end.getZ();
 		} else if(ady > adz) {
 			biggest = Axis.Y;
-//			maxl += array[0].length;
+			minl = min.getY(); maxl = max.getY();
 			sl = start.getY(); el = end.getY();
 			sc1 = start.getX(); ec1 = end.getX();
 			sc2 = start.getZ(); ec2 = end.getZ();
 		} else {
 			biggest = Axis.Z;
-//			maxl += array[0][0].length;
+			minl = min.getZ(); maxl = max.getZ();
 			sl = start.getZ(); el = end.getZ();
 			sc1 = start.getX(); ec1 = end.getX();
 			sc2 = start.getY(); ec2 = end.getY();
@@ -237,10 +240,8 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		int dl = el - sl;
 		int dc1 = ec1 - sc1;
 		int dc2 = ec2 - sc2;
-		//int minl = sl < -radius ? -radius : sl;
-		int minl = sl;
-		//if(maxl > el) maxl = el;
-		int maxl = el;
+		if(minl < sl) minl = sl;
+		if(maxl > el) maxl = el;
 		for(int l = minl; l <= maxl; l++) {
 			int c1 = dl == 0 ? sc1 : (l - sl) * dc1 / dl + sc1;
 			int c2 = dl == 0 ? sc2 : (l - sl) * dc2 / dl + sc2;
@@ -267,29 +268,31 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 		final int midR = 1;
 		final int maxR = 6*6;
 //		final int yShrinkSq = 4;
-		loopLine(start, end, v -> {
-			int x = v.getX(), y = v.getY(), z = v.getZ();
-			int xs = Math.max(0, x-radius);
-			int xe = Math.min(array.length-1, x+radius);
-			int ys = Math.max(0, y-yRadius);
-			int ye = Math.min(array[0].length-1, y+yRadius);
-			int zs = Math.max(0, z-radius);
-			int ze = Math.min(array[0][0].length-1, z+radius);
-			for(int x2 = xs; x2 <= xe; x2++) {
-				for(int y2 = ys; y2 <= ye; y2++) {
-					for(int z2 = zs; z2 <= ze; z2++) {
-						int dx = x2 - x;
-						int dy = y2 - y;
-						int dz = z2 - z;
-						int r = dx*dx + dy*dy + dz*dz;
-//						float chance = ((float) r) / maxR;
-						if(r == 0 && magma) array[x2][0][z2] = 10f;
-						float chance = !cheese && r <= midR ? 0f : (r <= maxR ? 0.5f : 1f);
-						if(chance < array[x2][y2][z2]) array[x2][y2][z2] = chance;
+		loopLine(start, end, new Vector3i(-radius, -radius, -radius),
+				new Vector3i(array.length+radius, array[0].length+radius,array[0][0].length+radius),
+				v -> {
+					int x = v.getX(), y = v.getY(), z = v.getZ();
+					int xs = Math.max(0, x-radius);
+					int xe = Math.min(array.length-1, x+radius);
+					int ys = Math.max(0, y-yRadius);
+					int ye = Math.min(array[0].length-1, y+yRadius);
+					int zs = Math.max(0, z-radius);
+					int ze = Math.min(array[0][0].length-1, z+radius);
+					for(int x2 = xs; x2 <= xe; x2++) {
+						for(int y2 = ys; y2 <= ye; y2++) {
+							for(int z2 = zs; z2 <= ze; z2++) {
+								int dx = x2 - x;
+								int dy = y2 - y;
+								int dz = z2 - z;
+								int r = dx*dx + dy*dy + dz*dz;
+								//						float chance = ((float) r) / maxR;
+								if(r == 0 && magma) array[x2][0][z2] = 10f;
+								float chance = !cheese && r <= midR ? 0f : (r <= maxR ? 0.5f : 1f);
+								if(chance < array[x2][y2][z2]) array[x2][y2][z2] = chance;
+							}
+						}
 					}
-				}
-			}
-		});
+				});
 	}
 	
 	public void digTriangle(float[][][] array, Vector3i a, Vector3i b, Vector3i c, boolean cheese) {
@@ -365,8 +368,8 @@ public class CellularCarver extends WorldCarver<EmptyCarverConfig> {
 						Vector3i v2 = new Vector3i(segEnd.getX() - (int) sNor.x,
 								segEnd.getY() - (int) sNor.y,
 								segEnd.getZ() - (int) sNor.z);
-						digTriangle(array, pv1, pv2, v1, cheese);
-						digTriangle(array, pv2, v1, v2, cheese);
+						digTriangle(array, v1, pv1, pv2, cheese);
+						digTriangle(array, pv2, v2, v1, cheese);
 						pTan = tan; pNor = nor; pv1 = v1; pv2 = v2;
 					}
 				}
